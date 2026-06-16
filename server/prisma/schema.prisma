@@ -150,8 +150,37 @@ model Notification {
   message    String
   type       String    @default("info") // success, warning, info
   read       Boolean   @default(false)
+  category   String    @default("SYSTEM") // BOOKING, PAYMENT, EVENT, SYSTEM
+  priority   String    @default("LOW") // LOW, MEDIUM, HIGH, URGENT
+  isRead     Boolean   @default(false)
   createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+  logs       NotificationLog[]
 }
+
+model NotificationTemplate {
+  id      String @id @default(uuid())
+  name    String @unique
+  subject String
+  body    String
+  type    String
+}
+
+model NotificationPreference {
+  id           String  @id @default(uuid())
+  userId       String  @unique
+  emailEnabled Boolean @default(true)
+  inAppEnabled Boolean @default(true)
+}
+
+model NotificationLog {
+  id             String       @id @default(uuid())
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  status         String
+  sentAt         DateTime     @default(now())
+}
+
 
 model BookingStatusHistory {
   id        String   @id @default(uuid())

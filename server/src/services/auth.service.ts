@@ -2,6 +2,7 @@ import prisma from '../config/database';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { RegisterInput, LoginInput, ResetPasswordInput, ChangePasswordInput } from '../validations/auth.validation';
+import { NotificationService } from './notification.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'golden_celebrations_secret_key_123_abc_xyz';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'golden_celebrations_refresh_secret_key_987_def_uvw';
@@ -79,17 +80,21 @@ export class AuthService {
       data: { refreshToken },
     });
 
-    // Create a welcome notification
-    await prisma.notification.create({
-      data: {
+    // Create a welcome notification using template
+    try {
+      await NotificationService.sendNotification({
         customerId: customer.id,
-        date: new Date().toISOString().split('T')[0],
-        title: 'Account Created',
-        message: `Welcome to Golden Celebrations Lawn, ${customer.name}! Explore your customer dashboard.`,
-        type: 'success',
-        read: false,
-      },
-    });
+        templateName: 'welcome_email',
+        variables: {
+          name: customer.name
+        },
+        category: 'SYSTEM',
+        priority: 'MEDIUM',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Failed to send welcome notification:', err);
+    }
 
     const { password: _, ...profile } = customer;
     return {
@@ -207,17 +212,19 @@ export class AuthService {
       },
     });
 
-    // Create notification for password reset request
-    await prisma.notification.create({
-      data: {
+    // Create notification for password reset request using NotificationService
+    try {
+      await NotificationService.sendNotification({
         customerId: customer.id,
-        date: new Date().toISOString().split('T')[0],
         title: 'Password Reset Request',
         message: `A password reset request was made. Use code ${resetCode} to complete reset.`,
-        type: 'warning',
-        read: false,
-      },
-    });
+        category: 'SYSTEM',
+        priority: 'HIGH',
+        type: 'warning'
+      });
+    } catch (err) {
+      console.error('Failed to send reset code notification:', err);
+    }
 
     // In a real application, email is dispatched. In this frontend-only/demo environment, we also return the token.
     return {
@@ -253,17 +260,19 @@ export class AuthService {
       },
     });
 
-    // Create success notification
-    await prisma.notification.create({
-      data: {
+    // Create success notification using NotificationService
+    try {
+      await NotificationService.sendNotification({
         customerId: customer.id,
-        date: new Date().toISOString().split('T')[0],
         title: 'Password Reset Successful',
         message: 'Your portal account password has been successfully updated.',
-        type: 'success',
-        read: false,
-      },
-    });
+        category: 'SYSTEM',
+        priority: 'MEDIUM',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Failed to send reset success notification:', err);
+    }
 
     return {
       message: 'Password has been reset successfully. Please login with your new password.',
@@ -294,17 +303,19 @@ export class AuthService {
       },
     });
 
-    // Create success notification
-    await prisma.notification.create({
-      data: {
+    // Create success notification using NotificationService
+    try {
+      await NotificationService.sendNotification({
         customerId,
-        date: new Date().toISOString().split('T')[0],
         title: 'Password Changed',
         message: 'Your account password has been updated successfully.',
-        type: 'success',
-        read: false,
-      },
-    });
+        category: 'SYSTEM',
+        priority: 'MEDIUM',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Failed to send change password notification:', err);
+    }
 
     return {
       message: 'Password updated successfully',

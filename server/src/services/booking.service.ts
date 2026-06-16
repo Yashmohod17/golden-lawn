@@ -1,5 +1,6 @@
 import { bookingRepository } from '../repositories/booking.repository';
 import { BookingInput } from '../validations/booking.validation';
+import { NotificationService } from './notification.service';
 
 export class BookingService {
   async getBookings() {
@@ -7,19 +8,135 @@ export class BookingService {
   }
 
   async createBooking(data: BookingInput) {
-    return bookingRepository.create(data);
+    const booking = await bookingRepository.create(data);
+    if (booking.customerId) {
+      try {
+        await NotificationService.sendNotification({
+          customerId: booking.customerId,
+          templateName: 'booking_confirmation',
+          variables: {
+            eventType: booking.eventType,
+            date: booking.date,
+            bookingId: booking.id
+          },
+          category: 'BOOKING',
+          priority: 'HIGH',
+          type: 'success'
+        });
+      } catch (err) {
+        console.error('Failed to dispatch booking creation notification:', err);
+      }
+    }
+    return booking;
   }
 
   async updateBooking(id: string, data: any, changedBy = 'COORDINATOR') {
-    return bookingRepository.update(id, data, changedBy);
+    const booking = await bookingRepository.update(id, data, changedBy);
+    if (booking.customerId) {
+      try {
+        if (data.status === 'CONFIRMED') {
+          await NotificationService.sendNotification({
+            customerId: booking.customerId,
+            templateName: 'booking_confirmation',
+            variables: {
+              eventType: booking.eventType,
+              date: booking.date,
+              bookingId: booking.id
+            },
+            category: 'BOOKING',
+            priority: 'HIGH',
+            type: 'success'
+          });
+        } else if (data.status === 'CANCELLED') {
+          await NotificationService.sendNotification({
+            customerId: booking.customerId,
+            templateName: 'booking_cancellation',
+            variables: {
+              eventType: booking.eventType,
+              date: booking.date,
+              bookingId: booking.id
+            },
+            category: 'BOOKING',
+            priority: 'URGENT',
+            type: 'warning'
+          });
+        } else {
+          // General config changes
+          await NotificationService.sendNotification({
+            customerId: booking.customerId,
+            title: 'Booking Details Updated',
+            message: `Your booking details for ${booking.eventType} on ${booking.date} have been updated.`,
+            category: 'BOOKING',
+            priority: 'MEDIUM',
+            type: 'info'
+          });
+        }
+      } catch (err) {
+        console.error('Failed to dispatch booking update notification:', err);
+      }
+    }
+    return booking;
   }
 
   async updateBookingStatus(id: string, status: 'PENDING' | 'CONFIRMED' | 'CANCELLED', changedBy = 'COORDINATOR') {
-    return bookingRepository.update(id, { status }, changedBy);
+    const booking = await bookingRepository.update(id, { status }, changedBy);
+    if (booking.customerId) {
+      try {
+        if (status === 'CONFIRMED') {
+          await NotificationService.sendNotification({
+            customerId: booking.customerId,
+            templateName: 'booking_confirmation',
+            variables: {
+              eventType: booking.eventType,
+              date: booking.date,
+              bookingId: booking.id
+            },
+            category: 'BOOKING',
+            priority: 'HIGH',
+            type: 'success'
+          });
+        } else if (status === 'CANCELLED') {
+          await NotificationService.sendNotification({
+            customerId: booking.customerId,
+            templateName: 'booking_cancellation',
+            variables: {
+              eventType: booking.eventType,
+              date: booking.date,
+              bookingId: booking.id
+            },
+            category: 'BOOKING',
+            priority: 'URGENT',
+            type: 'warning'
+          });
+        }
+      } catch (err) {
+        console.error('Failed to dispatch booking status update notification:', err);
+      }
+    }
+    return booking;
   }
 
   async cancelBooking(id: string, changedBy = 'COORDINATOR') {
-    return bookingRepository.update(id, { status: 'CANCELLED' }, changedBy);
+    const booking = await bookingRepository.update(id, { status: 'CANCELLED' }, changedBy);
+    if (booking.customerId) {
+      try {
+        await NotificationService.sendNotification({
+          customerId: booking.customerId,
+          templateName: 'booking_cancellation',
+          variables: {
+            eventType: booking.eventType,
+            date: booking.date,
+            bookingId: booking.id
+          },
+          category: 'BOOKING',
+          priority: 'URGENT',
+          type: 'warning'
+        });
+      } catch (err) {
+        console.error('Failed to dispatch booking cancel notification:', err);
+      }
+    }
+    return booking;
   }
 
   async getStatusHistory(bookingId: string) {

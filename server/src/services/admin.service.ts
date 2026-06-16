@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { 
   StaffInput, TaskInput, LeadInput, InquiryInput, FollowUpInput, InvoiceInput 
 } from '../validations/admin.validation';
+import { NotificationService } from './notification.service';
 
 export class AdminService {
   
@@ -420,7 +421,7 @@ export class AdminService {
     });
     if (!creatorStaff) throw new Error('Creator is not a staff member');
 
-    return prisma.task.create({
+    const task = await prisma.task.create({
       data: {
         title: data.title,
         description: data.description,
@@ -431,6 +432,28 @@ export class AdminService {
         createdById: creatorStaff.id
       }
     });
+
+    if (task.assignedToId) {
+      const assignedStaff = await prisma.staff.findUnique({
+        where: { id: task.assignedToId }
+      });
+      if (assignedStaff) {
+        try {
+          await NotificationService.sendNotification({
+            userId: assignedStaff.userId,
+            title: 'New Task Assigned',
+            message: `You have been assigned a new task: "${task.title}". Due Date: ${task.dueDate || 'N/A'}.`,
+            category: 'EVENT',
+            priority: task.priority || 'MEDIUM',
+            type: 'info'
+          });
+        } catch (err) {
+          console.error('Failed to send task assignment notification:', err);
+        }
+      }
+    }
+
+    return task;
   }
 
   async updateTaskStatus(taskId: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED') {

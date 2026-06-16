@@ -92,20 +92,7 @@ export class BookingRepository {
         },
       });
 
-      // Notify customer in their portal tray
-      if (customer) {
-        await tx.notification.create({
-          data: {
-            customerId: customer.id,
-            date: todayStr,
-            title: 'New Booking Inquiry',
-            message: `Inquiry submitted for ${data.eventType} on ${data.date}. Estimate: ₹${data.cost.toLocaleString()}.`,
-            type: 'info',
-            read: false,
-          },
-        });
-      }
-
+      // Notify customer via BookingService after tx commits
       return booking;
     });
   }
@@ -200,20 +187,7 @@ export class BookingRepository {
           date: todayStr,
         });
 
-        // Add client notification if customerId exists
-        if (existing.customerId) {
-          const actionName = data.status === 'CONFIRMED' ? 'Confirmed' : data.status === 'CANCELLED' ? 'Cancelled' : 'Updated';
-          await tx.notification.create({
-            data: {
-              customerId: existing.customerId,
-              date: todayStr,
-              title: `Booking ${actionName}`,
-              message: `Your booking reservation ${id} (${existing.eventType}) has been marked ${data.status.toLowerCase()} by organizers.`,
-              type: data.status === 'CONFIRMED' ? 'success' : data.status === 'CANCELLED' ? 'warning' : 'info',
-              read: false,
-            },
-          });
-        }
+        // Notify customer via BookingService after tx commits
       }
 
       // 2. If logistics changed (date, location, guests, package) but status did not change

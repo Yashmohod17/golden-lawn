@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import crypto from 'crypto';
+import { NotificationService } from './notification.service';
 
 // Basic configuration for Razorpay
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
@@ -287,21 +288,28 @@ export class PaymentService {
         }
       });
 
-      // 9. Create user notification
-      if (booking.customerId) {
-        await tx.notification.create({
-          data: {
-            customerId: booking.customerId,
-            title: 'Payment Successful',
-            message: `Your payment of ₹${amountPaid.toLocaleString()} has been received. Your invoice has been updated.`,
-            type: 'success',
-            date: new Date().toISOString().substring(0, 10)
-          }
-        });
-      }
-
+      // 9. Handled via NotificationService outside the transaction
       return bUpdate;
     });
+
+    if (booking.customerId) {
+      try {
+        await NotificationService.sendNotification({
+          customerId: booking.customerId,
+          templateName: 'payment_receipt',
+          variables: {
+            amount: amountPaid,
+            bookingId,
+            paymentId: razorpay_payment_id
+          },
+          category: 'PAYMENT',
+          priority: 'HIGH',
+          type: 'success'
+        });
+      } catch (err) {
+        console.error('Failed to dispatch payment notification:', err);
+      }
+    }
 
     return updatedBooking;
   }
@@ -438,32 +446,9 @@ export class PaymentService {
             date: new Date().toISOString().substring(0, 10)
           }
         });
-
-        if (refund.payment.booking.customerId) {
-          await tx.notification.create({
-            data: {
-              customerId: refund.payment.booking.customerId,
-              title: 'Refund Processed',
-              message: `A refund of ₹${refund.refundAmount.toLocaleString()} has been processed and credited back.`,
-              type: 'info',
-              date: new Date().toISOString().substring(0, 10)
-            }
-          });
-        }
-      } else if (status === 'APPROVED') {
-        if (refund.payment.booking.customerId) {
-          await tx.notification.create({
-            data: {
-              customerId: refund.payment.booking.customerId,
-              title: 'Refund Approved',
-              message: `Your refund request of ₹${refund.refundAmount.toLocaleString()} has been approved.`,
-              type: 'success',
-              date: new Date().toISOString().substring(0, 10)
-            }
-          });
-        }
       }
 
+      // Handled via NotificationService outside the transaction
       // Audit log
       await tx.auditLog.create({
         data: {
@@ -476,6 +461,25 @@ export class PaymentService {
 
       return updated;
     });
+
+    if (refund.payment.booking.customerId) {
+      try {
+        await NotificationService.sendNotification({
+          customerId: refund.payment.booking.customerId,
+          templateName: 'refund_status',
+          variables: {
+            paymentId: refund.paymentId,
+            status: status.toLowerCase(),
+            amount: refund.refundAmount
+          },
+          category: 'PAYMENT',
+          priority: 'HIGH',
+          type: status === 'REJECTED' ? 'warning' : 'success'
+        });
+      } catch (err) {
+        console.error('Failed to dispatch refund status notification:', err);
+      }
+    }
 
     return updatedRefund;
   }
@@ -617,6 +621,26 @@ export class PaymentService {
         ipAddress: clientIp
       }
     });
+
+    if (booking.customerId) {
+      try {
+        await NotificationService.sendNotification({
+          customerId: booking.customerId,
+          templateName: 'invoice_generated',
+          variables: {
+            invoiceNo: invoice.invoiceNo,
+            bookingId: booking.id,
+            amount: invoice.amount,
+            dueDate: invoice.dueDate
+          },
+          category: 'PAYMENT',
+          priority: 'MEDIUM',
+          type: 'info'
+        });
+      } catch (err) {
+        console.error('Failed to dispatch invoice generation notification:', err);
+      }
+    }
 
     return invoice;
   }

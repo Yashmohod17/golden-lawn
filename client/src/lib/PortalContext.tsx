@@ -59,6 +59,9 @@ export interface PortalNotification {
   message: string;
   type: 'success' | 'info' | 'warning';
   read: boolean;
+  category?: string;
+  priority?: string;
+  isRead?: boolean;
 }
 
 interface PortalContextType {
@@ -121,6 +124,13 @@ export function PortalProvider({ children }: { children: ReactNode }) {
         fetch('/api/portal/invoices', { headers }),
       ]);
 
+      // Detect expired or invalid sessions
+      if (profileRes.status === 401 || profileRes.status === 403) {
+        console.warn('Session expired or unauthorized. Logging out...');
+        logout();
+        return;
+      }
+
       if (profileRes.ok && bookingsRes.ok && paymentsRes.ok && notificationsRes.ok && invoicesRes.ok) {
         const profileData = await profileRes.json();
         let bookingsData = await bookingsRes.json();
@@ -147,10 +157,10 @@ export function PortalProvider({ children }: { children: ReactNode }) {
         setNotifications(notificationsData);
         setInvoices(invoicesData);
       } else {
-        console.error('Failed to load portal resources from Express API');
+        console.warn('Failed to load portal resources from Express API');
       }
     } catch (err) {
-      console.error('Server sync error:', err);
+      console.warn('Server sync error:', err);
     }
   };
 
@@ -193,6 +203,85 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('booking-created', handleBookingCreated);
     };
   }, []);
+
+  // WebSocket connection & fallback polling for real-time notifications
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let ws: WebSocket | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('portal_access_token') : null;
+    const customerId = typeof window !== 'undefined' ? localStorage.getItem('portal_customer_id') || 'cust-rajesh' : 'cust-rajesh';
+
+    const connectWS = () => {
+      if (!token) return;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const isDevHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '4000';
+      const host = isDevHost ? '127.0.0.1:5000' : window.location.host;
+      const wsUrl = `${protocol}//${host}/?token=${token}`;
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log('Portal real-time notifications connected');
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'NOTIFICATION') {
+              // Prepend new notification to the notifications state
+              setNotifications((prev) => [payload.data, ...prev]);
+            }
+          } catch (err) {
+            console.warn('WS parse error:', err);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log('WS connection closed. Fallback to HTTP polling.');
+          startPolling();
+          reconnectTimeout = setTimeout(() => {
+            connectWS();
+          }, 5000);
+        };
+
+        ws.onerror = (err) => {
+          console.warn('WS connection error:', err);
+          ws?.close();
+        };
+      } catch (err) {
+        console.warn('Failed to create WebSocket client:', err);
+        startPolling();
+      }
+    };
+
+    const startPolling = () => {
+      if (pollInterval) return;
+      pollInterval = setInterval(() => {
+        console.log('Polling notifications via HTTP fallback...');
+        fetchPortalData(customerId);
+      }, 10000);
+    };
+
+    connectWS();
+
+    return () => {
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+      if (pollInterval) clearInterval(pollInterval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, [isAuthenticated]);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
