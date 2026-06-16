@@ -1,0 +1,342 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  roleId        String?
+  role          Role?          @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  staff         Staff?
+  auditLogs     AuditLog[]
+  notifications Notification[]
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique // OWNER, MANAGER, STAFF
+  permissions Permission[]
+  users       User[]
+}
+
+model Permission {
+  id    String @id @default(uuid())
+  name  String @unique // e.g. "read:bookings", "write:bookings"
+  roles Role[]
+}
+
+model Customer {
+  id               String             @id @default(uuid())
+  name             String
+  email            String             @unique
+  password         String
+  phone            String
+  address          String
+  avatar           String             @default("RK")
+  joinedDate       String
+  cateringPref     String?
+  themePref        String?
+  contactPref      String?
+  role             String             @default("CUSTOMER") // CUSTOMER, COORDINATOR, ADMIN
+  refreshToken     String?
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  createdAt        DateTime           @default(now())
+  bookings         Booking[]
+  notifications    Notification[]
+  notes            CustomerNote[]
+  documents        CustomerDocument[]
+  payments         Payment[]
+  invoices         Invoice[]
+}
+
+model CustomerNote {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  note       String
+  authorName String
+  createdAt  DateTime @default(now())
+}
+
+model CustomerDocument {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String
+  url        String
+  type       String   // e.g. "PDF", "IMAGE"
+  createdAt  DateTime @default(now())
+}
+
+model Booking {
+  id               String                 @id @default(uuid())
+  customerId       String?
+  customer         Customer?              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name             String                 // Retain for compatibility with existing admin controllers
+  email            String                 // Retain for compatibility
+  phone            String                 // Retain for compatibility
+  eventType        String
+  date             String
+  guests           Int
+  package          String
+  cost             Int
+  paid             Int                    @default(0)
+  pending          Int                    @default(0)
+  notes            String?
+  status           String                 @default("PENDING")
+  location         String                 @default("Grand Main Lawn A & B")
+  coordinatorName  String                 @default("Aravind Sharma")
+  coordinatorPhone String                 @default("+91 98877 66554")
+  createdAt        DateTime               @default(now())
+  milestones       Milestone[]
+  payments         Payment[]
+  statusHistory    BookingStatusHistory[]
+  timelineEvents   BookingTimelineEvent[]
+  invoices         Invoice[]
+  reminders        PaymentReminder[]
+}
+
+model Milestone {
+  id        String   @id @default(uuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  label     String
+  date      String?
+  status    String   @default("PENDING") // COMPLETED, IN_PROGRESS, PENDING, CANCELLED
+}
+
+model Payment {
+  id             String               @id @default(uuid())
+  bookingId      String
+  booking        Booking              @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  amount         Int
+  paymentType    String               @default("ADVANCE") // ADVANCE, INSTALLMENT, FINAL
+  paymentStatus  String               @default("PAID") // PENDING, PARTIALLY_PAID, PAID, FAILED, REFUNDED
+  paymentMethod  String               @default("UPI")
+  transactionId  String?              @default("txn-mock")
+  paidAt         DateTime?            @default(now())
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now()) @updatedAt
+  
+  // Compatibility fields
+  method         String               @default("UPI")
+  status         String               @default("SUCCESS")
+  date           String               @default("")
+  description    String               @default("Payment")
+  
+  refundRequests RefundRequest[]
+  transactions   PaymentTransaction[]
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String
+  title      String
+  message    String
+  type       String    @default("info") // success, warning, info
+  read       Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+}
+
+model BookingStatusHistory {
+  id        String   @id @default(uuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  oldStatus String?
+  newStatus String
+  changedAt DateTime @default(now())
+  changedBy String?  // CUSTOMER, COORDINATOR, ADMIN
+  notes     String?
+}
+
+model BookingTimelineEvent {
+  id          String   @id @default(uuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  type        String   // "STATUS_CHANGE", "DETAILS_UPDATE", "MILESTONE_UPDATE", "PAYMENT_RECEIVED"
+  date        String   // YYYY-MM-DD
+  createdAt   DateTime @default(now())
+}
+
+model Invoice {
+  id              String   @id @default(uuid())
+  bookingId       String
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  invoiceNo       String   @unique // e.g. INV-2026-0001
+  invoiceNumber   String?
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  amount          Int      // Total Amount
+  totalAmount     Int      @default(0)
+  paidAmount      Int      @default(0)
+  remainingAmount Int      @default(0)
+  dueDate         String
+  status          String   // PAID, UNPAID, PARTIALLY_PAID, OVERDUE
+  createdAt       DateTime @default(now())
+  generatedAt     DateTime @default(now())
+}
+
+model RefundRequest {
+  id           String   @id @default(uuid())
+  paymentId    String
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  reason       String
+  refundAmount Int
+  refundStatus String   @default("REQUESTED") // REQUESTED, APPROVED, REJECTED, COMPLETED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PaymentTransaction {
+  id                String   @id @default(uuid())
+  paymentId         String?
+  payment           Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  orderId           String   // Razorpay order id
+  razorpayPaymentId String?
+  razorpaySignature String?
+  amount            Int
+  status            String   @default("CREATED") // CREATED, SUCCESS, FAILED
+  createdAt         DateTime @default(now())
+}
+
+model PaymentReminder {
+  id        String   @id @default(uuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  type      String   // ADVANCE, DUE, EVENT
+  amount    Int
+  dueDate   String
+  status    String   @default("PENDING") // PENDING, SENT
+  createdAt DateTime @default(now())
+}
+
+model AvailabilityDate {
+  id     String  @id @default(uuid())
+  date   String  @unique // YYYY-MM-DD
+  status String  // AVAILABLE, BOOKED, BLOCKED, PENDING
+  notes  String?
+}
+
+model BlockedDate {
+  id        String   @id @default(uuid())
+  date      String   @unique // YYYY-MM-DD
+  reason    String
+  blockedBy String
+  createdAt DateTime @default(now())
+}
+
+model CalendarEvent {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  startDate   String   // YYYY-MM-DD
+  endDate     String   // YYYY-MM-DD
+  color       String?  // hex or Tailwind class
+  bookingId   String?
+  createdAt   DateTime @default(now())
+}
+
+model Staff {
+  id            String       @id @default(uuid())
+  userId        String       @unique
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          String       // e.g. OWNER, MANAGER, COORDINATOR, DECOR_STAFF
+  phone         String
+  status        String       @default("ACTIVE") // ACTIVE, INACTIVE
+  salary        Int?
+  attendance    Attendance[]
+  assignedTasks Task[]       @relation("AssignedTo")
+  createdTasks  Task[]       @relation("CreatedBy")
+  createdAt     DateTime     @default(now())
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date      String   // YYYY-MM-DD
+  status    String   // PRESENT, ABSENT, HALF_DAY, LEAVE
+  checkIn   String?  // HH:MM
+  checkOut  String?  // HH:MM
+  createdAt DateTime @default(now())
+
+  @@unique([staffId, date])
+}
+
+model Task {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  status       String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  priority     String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  dueDate      String?
+  assignedToId String?
+  assignedTo   Staff?   @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById  String
+  createdBy    Staff    @relation("CreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+}
+
+model Lead {
+  id        String    @id @default(uuid())
+  name      String
+  email     String?
+  phone     String
+  source    String?   // Website, Referral, Social Media
+  status    String    @default("NEW") // NEW, CONTACTED, QUALIFIED, LOST, WON
+  notes     String?
+  inquiries Inquiry[]
+  createdAt DateTime  @default(now())
+}
+
+model Inquiry {
+  id        String     @id @default(uuid())
+  leadId    String
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  eventType String
+  eventDate String
+  guests    Int
+  notes     String?
+  status    String     @default("OPEN") // OPEN, CONVERTED, CLOSED
+  followUps FollowUp[]
+  createdAt DateTime   @default(now())
+}
+
+model FollowUp {
+  id         String   @id @default(uuid())
+  inquiryId  String
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  date       String   // YYYY-MM-DD
+  notes      String
+  outcome    String?
+  nextAction String?
+  status     String   @default("SCHEDULED") // SCHEDULED, COMPLETED, MISSED
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?  // JSON details
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
