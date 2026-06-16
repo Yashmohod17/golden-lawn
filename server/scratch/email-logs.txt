@@ -1,0 +1,10 @@
+
+========================================
+[MOCK EMAIL DELIVERED]
+Timestamp: 2026-06-16T17:56:26.952Z
+From: Golden Celebration Lawn <onboarding@resend.dev>
+To: staff@goldencelebration.com
+Subject: Lawn Main Power Generator Maintenance
+----------------------------------------
+Maintenance schedule: Wed 10:00 - 14:00.
+========================================

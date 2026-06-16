@@ -33,6 +33,64 @@ export default function CustomerProfile() {
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwError, setPwError] = useState('');
 
+  // Notification Channels Preferences State
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [inAppEnabled, setInAppEnabled] = useState(true);
+  const [prefLoading, setPrefLoading] = useState(false);
+  const [prefSaveSuccess, setPrefSaveSuccess] = useState(false);
+
+  // Fetch Preferences on mount
+  React.useEffect(() => {
+    const fetchPrefs = async () => {
+      try {
+        const token = localStorage.getItem('portal_access_token');
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch('/api/notifications/preferences', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setEmailEnabled(data.emailEnabled);
+          setInAppEnabled(data.inAppEnabled);
+        }
+      } catch (err) {
+        console.error('Failed to load notification preferences:', err);
+      }
+    };
+    fetchPrefs();
+  }, []);
+
+  const handleNotificationPrefSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPrefSaveSuccess(false);
+    setPrefLoading(true);
+
+    try {
+      const token = localStorage.getItem('portal_access_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ emailEnabled, inAppEnabled }),
+      });
+
+      if (res.ok) {
+        setPrefSaveSuccess(true);
+        setTimeout(() => setPrefSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error('Failed to save notification preferences:', err);
+    } finally {
+      setPrefLoading(false);
+    }
+  };
+
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setInfoSuccess(false);
@@ -292,6 +350,74 @@ export default function CustomerProfile() {
               >
                 <Save className="h-4 w-4" />
                 <span>Save Preferences</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Form: Notification Channels Preferences */}
+          <div className="glass-panel rounded-3xl border border-gold-400/15 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex justify-between items-center pb-4 border-b border-gold-400/5">
+              <h3 className="font-serif text-lg font-bold text-foreground">Notification Channels</h3>
+              {prefSaveSuccess && (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Preferences Saved
+                </span>
+              )}
+            </div>
+
+            <form onSubmit={handleNotificationPrefSubmit} className="space-y-6">
+              <p className="text-[11px] text-foreground/60 leading-relaxed">
+                Control how you receive updates regarding your bookings, milestone approvals, invoice receipts, and coordination follow-ups.
+              </p>
+
+              <div className="space-y-4">
+                {/* Email Channel */}
+                <div className="flex items-start justify-between p-4.5 rounded-2xl border border-gold-400/5 bg-ivory-50/25 dark:bg-zinc-900/40">
+                  <div className="space-y-1 pr-4">
+                    <span className="block text-xs font-bold text-foreground">Email Notifications</span>
+                    <span className="block text-[10px] text-foreground/50 leading-relaxed">
+                      Receive booking receipts, invoices, and confirmation letters directly in your mailbox.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={emailEnabled}
+                      onChange={(e) => setEmailEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 dark:bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500"></div>
+                  </label>
+                </div>
+
+                {/* In-App Channel */}
+                <div className="flex items-start justify-between p-4.5 rounded-2xl border border-gold-400/5 bg-ivory-50/25 dark:bg-zinc-900/40">
+                  <div className="space-y-1 pr-4">
+                    <span className="block text-xs font-bold text-foreground">Real-Time In-App Alerts</span>
+                    <span className="block text-[10px] text-foreground/50 leading-relaxed">
+                      Show popup flags and notification logs directly in your client dashboard panel.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={inAppEnabled}
+                      onChange={(e) => setInAppEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 dark:bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500"></div>
+                  </label>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={prefLoading}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold-600 to-gold-400 px-5 py-3 font-sans text-xs font-bold tracking-wider text-zinc-950 uppercase shadow-md transition-colors cursor-pointer disabled:opacity-55"
+              >
+                <Save className="h-4 w-4" />
+                <span>{prefLoading ? 'Saving...' : 'Save Notification Preferences'}</span>
               </button>
             </form>
           </div>

@@ -516,4 +516,37 @@ export const adminService = {
     });
     return handleResponse(res);
   },
+
+  // 9. Notifications Management
+  async getNotificationTemplates(): Promise<any[]> {
+    const res = await fetch(`${API_URL}/api/notifications/templates`, {
+      headers: getAdminHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async updateNotificationTemplate(id: string, templateData: { subject?: string; body?: string }): Promise<any> {
+    const res = await fetch(`${API_URL}/api/notifications/templates/${id}`, {
+      method: 'PUT',
+      headers: getAdminHeaders(),
+      body: JSON.stringify(templateData),
+    });
+    return handleResponse(res);
+  },
+
+  async broadcastNotification(broadcastData: { title: string; message: string; category?: string; priority?: string; targetRole?: string }): Promise<any> {
+    const res = await fetch(`${API_URL}/api/notifications/broadcast`, {
+      method: 'POST',
+      headers: getAdminHeaders(),
+      body: JSON.stringify(broadcastData),
+    });
+    return handleResponse(res);
+  },
+
+  async getNotificationAnalytics(): Promise<any> {
+    const res = await fetch(`${API_URL}/api/notifications/analytics`, {
+      headers: getAdminHeaders(),
+    });
+    return handleResponse(res);
+  },
 };

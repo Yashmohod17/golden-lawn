@@ -178,6 +178,9 @@ const adminBookings = [
 
 async function main() {
   console.log('Clearing database tables...');
+  await prisma.notificationLog.deleteMany({});
+  await prisma.notificationTemplate.deleteMany({});
+  await prisma.notificationPreference.deleteMany({});
   await prisma.followUp.deleteMany({});
   await prisma.inquiry.deleteMany({});
   await prisma.lead.deleteMany({});
@@ -573,6 +576,58 @@ async function main() {
       { bookingId: 'b-2', type: 'ADVANCE', amount: 1000000, dueDate: '2026-10-01', status: 'SENT' },
       { bookingId: 'b-1', type: 'DUE', amount: 2990000, dueDate: '2026-11-05', status: 'PENDING' },
     ]
+  });
+
+  console.log('Seeding Notification Templates...');
+  await prisma.notificationTemplate.createMany({
+    data: [
+      {
+        name: 'booking_confirmation',
+        subject: 'Booking Confirmed - Golden Celebration Lawn',
+        body: 'Dear {{name}},\n\nYour booking for {{eventType}} on {{date}} has been confirmed. Booking ID: {{bookingId}}.\n\nThank you for choosing Golden Celebration Lawn!\n\nBest Regards,\nGolden Celebration Lawn Team',
+        type: 'EMAIL',
+      },
+      {
+        name: 'booking_cancellation',
+        subject: 'Booking Cancelled - Golden Celebration Lawn',
+        body: 'Dear {{name}},\n\nYour booking for {{eventType}} on {{date}} has been cancelled. Booking ID: {{bookingId}}.\n\nIf you have any questions, please contact our support team.\n\nBest Regards,\nGolden Celebration Lawn Team',
+        type: 'EMAIL',
+      },
+      {
+        name: 'welcome_email',
+        subject: 'Welcome to Golden Celebration Lawn',
+        body: 'Dear {{name}},\n\nWelcome to your portal! You can now view your bookings, manage payments, and track milestone updates here.\n\nBest Regards,\nGolden Celebration Lawn Team',
+        type: 'EMAIL',
+      },
+      {
+        name: 'payment_receipt',
+        subject: 'Payment Receipt - Golden Celebration Lawn',
+        body: 'Dear {{name}},\n\nWe have successfully received your payment of ₹{{amount}} for booking ID {{bookingId}}. Receipt ID: {{paymentId}}.\n\nBest Regards,\nGolden Celebration Lawn Team',
+        type: 'EMAIL',
+      },
+      {
+        name: 'invoice_generated',
+        subject: 'New Invoice Generated - Golden Celebration Lawn',
+        body: 'Dear {{name}},\n\nA new invoice {{invoiceNo}} has been generated for your booking {{bookingId}}.\nAmount Due: ₹{{amount}}\nDue Date: {{dueDate}}\n\nPlease login to your portal to make the payment.\n\nBest Regards,\nGolden Celebration Lawn Team',
+        type: 'EMAIL',
+      },
+      {
+        name: 'refund_status',
+        subject: 'Refund Status Update - Golden Celebration Lawn',
+        body: 'Dear {{name}},\n\nYour refund request for transaction {{paymentId}} has been {{status}}.\nAmount: ₹{{amount}}\n\nBest Regards,\nGolden Celebration Lawn Team',
+        type: 'EMAIL',
+      },
+    ],
+  });
+
+  console.log('Seeding Notification Preferences...');
+  await prisma.notificationPreference.createMany({
+    data: [
+      { userId: 'cust-rajesh', emailEnabled: true, inAppEnabled: true },
+      { userId: userOwner.id, emailEnabled: true, inAppEnabled: true },
+      { userId: userManager.id, emailEnabled: true, inAppEnabled: true },
+      { userId: userStaff.id, emailEnabled: true, inAppEnabled: true },
+    ],
   });
 
   console.log('Database seeded successfully.');
